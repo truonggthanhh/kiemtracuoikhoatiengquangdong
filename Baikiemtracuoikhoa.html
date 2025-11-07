@@ -1,0 +1,603 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Bài kiểm tra cuối khoá tiếng Quảng Đông Sơ cấp</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <!-- Chosen Palette: Warm Neutrals (Stone, Slate, Teal) -->
+    <!-- Application Structure Plan: Thêm một màn hình bắt đầu để thu thập tên người dùng, cá nhân hóa trải nghiệm. Thêm đồng hồ đếm ngược 40 phút. Giữ nguyên cấu trúc điều hướng dạng tab cho 5 phần thi để dễ sử dụng. Các yếu tố tương tác như kéo-thả và các vị trí có thể nhấp chuột vẫn được giữ lại. Cửa sổ kết quả được cập nhật để hiển thị tên người dùng và biểu đồ điểm số. -->
+    <!-- Visualization & Content Choices: Tăng số câu hỏi lên 30 (6 câu mỗi phần). Phần 1/5: Trắc nghiệm -> Nút radio. Phần 2: Điền vào chỗ trống -> Kéo-thả. Phần 3: Vị trí từ -> Vùng có thể nhấp. Phần 4: Dịch -> Ô nhập văn bản. Kết quả -> Biểu đồ Donut (Chart.js) hiển thị điểm số và tiêu đề được cá nhân hóa. Không sử dụng SVG/Mermaid. -->
+    <!-- CONFIRMATION: NO SVG graphics used. NO Mermaid JS used. -->
+    <style>
+        body { font-family: 'Inter', sans-serif; }
+        .jyutping { color: #555; font-size: 0.85rem; }
+        .question-card {
+            background-color: white;
+            border-radius: 0.75rem;
+            padding: 1.5rem;
+            margin-bottom: 1.5rem;
+            box-shadow: 0 4px 6px -1px rgb(0 0 0 / 0.1), 0 2px 4px -2px rgb(0 0 0 / 0.1);
+            transition: all 0.3s ease;
+        }
+        .nav-tab {
+            cursor: pointer;
+            padding: 0.75rem 1rem;
+            border-bottom: 3px solid transparent;
+            transition: all 0.3s ease;
+            font-weight: 500;
+            color: #4a5568;
+        }
+        .nav-tab.active {
+            color: #2c5282;
+            border-bottom-color: #2c5282;
+        }
+        .correct { border-left: 5px solid #48bb78; }
+        .incorrect { border-left: 5px solid #f56565; }
+        .correct-answer-text { color: #2f855a; font-weight: 600; }
+        .word-bank-item {
+            cursor: pointer;
+            user-select: none;
+            transition: all 0.2s;
+        }
+        .word-bank-item.used {
+            opacity: 0.4;
+            cursor: not-allowed;
+            text-decoration: line-through;
+        }
+        .fill-target {
+            display: inline-block;
+            min-width: 120px;
+            height: 40px;
+            border: 2px dashed #cbd5e0;
+            background-color: #edf2f7;
+            text-align: center;
+            line-height: 36px;
+            border-radius: 0.375rem;
+            vertical-align: middle;
+            padding: 0 0.5rem;
+        }
+        .fill-target.filled {
+            border-style: solid;
+            border-color: #a0aec0;
+            background-color: #e2e8f0;
+            cursor: pointer;
+        }
+        .placement-choice {
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+        .placement-choice:hover {
+            transform: scale(1.1);
+        }
+        .placement-choice.selected {
+            font-weight: 700;
+            color: #2c5282;
+            text-decoration: underline;
+        }
+        #timer {
+            font-size: 1.5rem;
+            font-weight: 700;
+            color: #2c5282;
+        }
+    </style>
+</head>
+<body class="bg-stone-50 text-slate-800 flex items-center justify-center min-h-screen">
+
+    <div class="container mx-auto max-w-4xl p-4 sm:p-6 lg:p-8">
+        <!-- Start Screen -->
+        <div id="start-screen" class="text-center bg-white p-8 rounded-xl shadow-lg">
+            <h1 class="text-3xl md:text-4xl font-bold text-slate-900 mb-4">Chào mừng bạn đến với Bài kiểm tra Tiếng Quảng Đông</h1>
+            <p class="text-slate-600 mb-6">Vui lòng nhập tên của bạn để bắt đầu. Bạn sẽ có 40 phút để hoàn thành.</p>
+            <input type="text" id="student-name" placeholder="Họ và tên của bạn" class="w-full max-w-sm mx-auto p-3 border border-slate-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-blue-500 mb-2">
+            <p id="name-error" class="text-red-500 text-sm h-4 mb-4"></p>
+            <button id="start-btn" class="bg-blue-800 text-white font-bold py-3 px-8 rounded-lg shadow-md hover:bg-blue-900 transition-transform transform hover:scale-105">Bắt đầu làm bài</button>
+        </div>
+
+        <!-- Test Container -->
+        <div id="test-container" class="hidden">
+            <header class="text-center mb-8 relative">
+                <h1 class="text-3xl md:text-4xl font-bold text-slate-900">Bài Kiểm Tra Cuối Khoá Tiếng Quảng Đông Sơ Cấp</h1>
+                <div id="timer-container" class="absolute top-0 right-0 bg-white p-2 rounded-lg shadow">
+                    <span id="timer">40:00</span>
+                </div>
+            </header>
+
+            <nav class="flex justify-center border-b border-slate-200 mb-8 flex-wrap">
+                <div id="nav-1" class="nav-tab active" onclick="showSection('section-1')">Phần 1: Trắc Nghiệm</div>
+                <div id="nav-2" class="nav-tab" onclick="showSection('section-2')">Phần 2: Điền Từ</div>
+                <div id="nav-3" class="nav-tab" onclick="showSection('section-3')">Phần 3: Sắp Xếp</div>
+                <div id="nav-4" class="nav-tab" onclick="showSection('section-4')">Phần 4: Dịch Thuật</div>
+                <div id="nav-5" class="nav-tab" onclick="showSection('section-5')">Phần 5: Đọc Hiểu</div>
+            </nav>
+
+            <main>
+                <section id="section-1"></section>
+                <section id="section-2" class="hidden"></section>
+                <section id="section-3" class="hidden"></section>
+                <section id="section-4" class="hidden"></section>
+                <section id="section-5" class="hidden"></section>
+            </main>
+            
+            <footer class="text-center mt-8">
+                <button id="check-answers-btn" class="bg-blue-800 text-white font-bold py-3 px-8 rounded-lg shadow-md hover:bg-blue-900 transition-transform transform hover:scale-105">Nộp Bài</button>
+                <button id="reset-btn" class="bg-gray-500 text-white font-bold py-3 px-8 rounded-lg shadow-md hover:bg-gray-600 transition-transform transform hover:scale-105 hidden ml-4">Làm Lại</button>
+            </footer>
+        </div>
+    </div>
+
+    <!-- Result Modal -->
+    <div id="result-modal" class="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 hidden">
+        <div class="bg-white rounded-lg shadow-2xl p-6 md:p-8 w-full max-w-md text-center">
+            <h2 id="result-title" class="text-2xl font-bold mb-2">Kết quả</h2>
+            <p id="result-score" class="text-4xl font-bold mb-4"></p>
+            <div class="chart-container relative h-64 md:h-72 w-full max-w-xs mx-auto mb-4">
+                <canvas id="result-chart"></canvas>
+            </div>
+            <p id="result-message" class="text-slate-600 mb-6"></p>
+            <button id="close-modal-btn" class="bg-blue-800 text-white font-bold py-2 px-6 rounded-lg hover:bg-blue-900">Đóng</button>
+        </div>
+    </div>
+
+
+<script>
+const examData = {
+    section1: [
+        { q: "A: 你好嗎? (Nei5 hou2 maa3?)<br>B: _______________.", options: ["我好好 (Ngo5 hou2 hou2.)", "我唔該 (Ngo5 m4 goi1.)", "我姓王 (Ngo5 sing3 Wong4.)", "再見 (Zoi3 gin3.)"], answer: 0 },
+        { q: "呢枝筆係邊個___? (Ni1 zi1 bat1 hai6 bin1 go3 ___?)", options: ["呀 (aa3)", "嘅 (ge3)", "呢 (ne1)", "嗎 (maa3)"], answer: 1 },
+        { q: "A: 你喺邊處食飯呀? (Nei5 hai2 bin1 syu3 sik6 faan6 aa3?)<br>B: 我喺___________食飯。(Ngo5 hai2 ___________ sik6 faan6.)", options: ["寫字樓 (se2 zi6 lau4)", "美國人 (Mei5 gwok3 jan4)", "手錶 (sau2 biu1)", "朋友 (pang4 jau5)"], answer: 0 },
+        { q: "王先生買___架車嘞。(Wong4 Sin1 saang1 maai5___gaa3 ce1 laak3.)", options: ["緊 (gan2)", "吓 (haa5)", "咗 (zo2)", "呢 (ne1)"], answer: 2 },
+        { q: "呢件衫裙又平又靚, _________! (Ni1 gin6 saam1 kwan4 jau6 peng4 jau6 leng3, _________!)", options: ["太貴嘞 (taai3 gwai3 laak3)", "真係好 (zan1 hai6 hou2)", "唔緊要 (m4 gan2 jiu3)", "對唔住 (deoi3 m4 zyu6)"], answer: 1 },
+        { q: "今日係禮拜一，聽日係___? (Gam1 jat6 hai6 Lai5 baai3 jat1, ting1 jat6 hai6 ___?)", options: ["禮拜二 (Lai5 baai3 ji6)", "禮拜日 (Lai5 baai3 jat6)", "琴日 (kam4 jat6)", "禮拜三 (Lai5 baai3 saam1)"], answer: 0 },
+        { q: "你___時間去探佢呀? (Nei5 ___ si4 gaan3 heoi3 taam3 keoi5 aa3?)", options: ["有冇 (jau5 mou5)", "係唔係 (hai6 m4 hai6)", "好唔好 (hou2 m4 hou2)", "食唔食 (sik6 m4 sik6)"], answer: 0 },
+        { q: "點解你唔買呀? 因為太___嘞。(Dim2 gaai2 nei5 m4 maai5 aa3? Jan1 wai6 taai3 ___ laak3.)", options: ["平 (peng4)", "靚 (leng3)", "貴 (gwai3)", "新 (san1)"], answer: 2 },
+        { q: "佢唔係英國人，佢係___。(Keoi5 m4 hai6 Jing1 gwok3 jan4, keoi5 hai6 ___.)", options: ["中國人 (Zung1 gwok3 jan4)", "美國車 (Mei5 gwok3 ce1)", "屋企 (uk1 kei2)", "朋友 (pang4 jau5)"], answer: 0 },
+        { q: "呢啲衫係___，所以好平。(Ni1 di1 saam1 hai6 ___, so2 ji5 hou2 peng4.)", options: ["新款 (san1 fun2)", "次貨 (ci3 fo3)", "紅色 (hung4 sik1)", "新鮮 (san1 sin1)"], answer: 1 }
+    ],
+    section2: {
+        words: [
+            "寫字樓 (se2 zi6 lau4)", "因為 (jan1 wai6)", "一齊 (jat1 cai4)", "幾多 (gei2 do1)", "等 (dang2)", 
+            "好食 (hou2 sik6)", "朋友 (pang4 jau5)", "貴 (gwai3)", "時間 (si4 gaan3)", "隨便 (ceoi4 bin2)"
+        ],
+        questions: [
+            { sentence: "我同我_________去英國。(Ngo5 tung4 ngo5 _________ heoi3 Jing1 gwok3.)", answer: "朋友 (pang4 jau5)" },
+            { sentence: "呢啲蝦_________錢一斤呀? (Ni1 di1 haa1 _________ cin2 jat1 gan1 aa3?)", answer: "幾多 (gei2 do1)" },
+            { sentence: "你要_________我食飯呀。(Nei5 jiu3 _________ ngo5 sik6 faan6 aa3?)", answer: "等 (dang2)" },
+            { sentence: "佢今日唔返_________。(Keoi5 gam1 jat6 m4 faan1 _________.)", answer: "寫字樓 (se2 zi6 lau4)" },
+            { sentence: "點解咁平呀? _________呢啲係次貨。(Dim2 gaai2 gam3 peng4 aa3? _________ ni1 di1 hai6 ci3 fo3.)", answer: "因為 (jan1 wai6)" },
+            { sentence: "呢啲牛肉真係_________。(Ni1 di1 ngau4 juk6 zan1 hai6_________.)", answer: "好食 (hou2 sik6)"},
+            { sentence: "呢度啲嘢太_________，我唔買。(Ni1 dou6 di1 je5 taai3 _________, ngo5 m4 maai5.)", answer: "貴 (gwai3)"},
+            { sentence: "你幾時有_________呀? (Nei5 gei2 si4 jau5 _________ aa3?)", answer: "時間 (si4 gaan3)"},
+            { sentence: "你_________坐啦, 唔駛客氣。(Nei5 _________ co5 laa1, m4 sai2 haak3 hei3.)", answer: "隨便 (ceoi4 bin2)"},
+            { sentence: "我哋_________去睇戲, 好嗎? (Ngo5 dei6 _________ heoi3 tai2 hei3, hou2 maa3?)", answer: "一齊 (jat1 cai4)"}
+        ]
+    },
+    section3: [
+        { q: "我哋 (A) 係 (B) 英國人 (C), 佢哋 (D) 係英國人。", jyutping: "Ngo5 dei6 (A) hai6 (B) Jing1 gwok3 jan4 (C), keoi5 dei6 (D) hai6 Jing1 gwok3 jan4.", word: "都 (dou1)", answer: "D" },
+        { q: "嗰 (A) 架 (B) 紅色 (C) 車係我 (D) 。", jyutping: "Go2 (A) gaa3 (B) hung4 sik1 (C) ce1 hai6 ngo5 (D).", word: "嘅 (ge3)", answer: "D" },
+        { q: "佢 (A) 喺 (B) 廚房 (C) 煮 (D) 飯。", jyutping: "Keoi5 (A) hai2 (B) cyu4 fong2 (C) zyu2 (D) faan6.", word: "緊 (gan2)", answer: "D" },
+        { q: "我哋 (A) 聽日 (B) 去 (C) 食飯 (D)。", jyutping: "Ngo5 dei6 (A) ting1 jat6 (B) heoi3 (C) sik6 faan6 (D).", word: "一齊 (jat1 cai4)", answer: "B" },
+        { q: "佢 (A) 識 (B) 英文, (C) 識 (D) 中文。", jyutping: "Keoi5 (A) sik1 (B) Jing1 man4, (C) sik1 (D) Zung1 man4.", word: "又 (jau6)", answer: "C" },
+        { q: "佢 (A) 佢爸爸 (B) 一樣 (C) 咁高 (D)。", jyutping: "Keoi5 (A) keoi5 baa4 baa1 (B) jat1 joeng6 (C) gam3 gou1 (D).", word: "好似 (hou2 ci5)", answer: "A"},
+        { q: "你 (A) 如果 (B) 有時間 (C), 就嚟探我 (D)。", jyutping: "Nei5 (A) jyu4 gwo2 (B) jau5 si4 gaan3 (C), zau6 lai4 taam3 ngo5 (D).", word: "如果 (jyu4 gwo2)", answer: "B"},
+        { q: "呢本書 (A) 貴, (B) 而且 (C) 唔好睇 (D)。", jyutping: "Ni1 bun2 syu1 (A) gwai3, (B) ji4 ce2 (C) m4 hou2 tai2 (D).", word: "又 (jau6)", answer: "A"},
+        { q: "我 (A) 想 (B) 買 (C) 兩本書 (D)。", jyutping: "Ngo5 (A) soeng2 (B) maai5 (C) loeng5 bun2 syu1 (D).", word: "只係 (zi2 hai6)", answer: "A"},
+        { q: "佢 (A) 喺 (B) 香港 (C) 做嘢 (D)。", jyutping: "Keoi5 (A) hai2 (B) Hoeng1 gong2 (C) zou6 je5 (D).", word: "而家 (ji4 gaa1)", answer: "A"}
+    ],
+    section4: [
+        { q: "Đây là văn phòng của tôi.", answer: "呢個係我嘅寫字樓。(Ni1 go3 hai6 ngo5 ge3 se2 zi6 lau4.)" },
+        { q: "Anh ấy muốn mua cái gì?", answer: "佢想買乜嘢呀? (Keoi5 soeng2 maai5 mat1 je5 aa3?)" },
+        { q: "Chúng ta không cần đợi anh ấy đâu.", answer: "我哋唔駛等佢啦。(Ngo5 dei6 m4 sai2 dang2 keoi5 laa1.)" },
+        { q: "Cái váy này không đắt lắm.", answer: "呢件衫裙唔係幾貴。(Ni1 gin6 saam1 kwan4 m4 hai6 gei2 gwai3.)" },
+        { q: "Để tôi xem thử.", answer: "等我睇吓。(Dang2 ngo5 tai2 haa5.)" },
+        { q: "Cái đồng hồ này rất đẹp.", answer: "呢個手錶好靚。(Ni1 go3 sau2 biu1 hou2 leng3.)"}
+    ],
+    section5: {
+        passage: "今日係禮拜日, 阿明同佢太太阿麗一齊去酒樓食飯。阿明想食牛肉, 但係阿麗想食龍蝦。伙記話:「今日嘅龍蝦又新鮮又平, 你哋要唔要呀?」阿麗聽咗好開心, 就話:「好呀! 我哋要一個龍蝦飯。」阿明都話好。佢哋食咗好多嘢, 用咗二百蚊。阿麗話啲餸好好食, 阿明都覺得好滿足。<br><span class='jyutping'>Gam1 jat6 hai6 Lai5 baai3 jat6, Aa3 Ming4 tung4 keoi5 taai3 taai2 Aa3 Lai6 jat1 cai4 heoi3 zau2 lau4 sik6 faan6. Aa3 Ming4 soeng2 sik6 ngau4 juk6, daan6 hai6 Aa3 Lai6 soeng2 sik6 lung4 haa1. Fo2 gei3 waa6: \"Gam1 jat6 ge3 lung4 haa1 jau6 san1 sin1 jau6 peng4, nei5 dei6 jiu3 m4 jiu3 aa3?\" Aa3 Lai6 teng1 zo2 hou2 hoi1 sam1, zau6 waa6: \"Hou2 aa3! Ngo5 dei6 jiu3 jat1 go3 lung4 haa1 faan6.\" Aa3 Ming4 dou1 waa6 hou2. Keoi5 dei6 sik6 zo2 hou2 do1 je5, jung6 zo2 ji6 baak3 man1. Aa3 Lai6 waa6 di1 sung3 hou2 hou2 sik6, Aa3 Ming4 dou1 gok3 dak1 hou2 mun5 zuk1.</span>",
+        questions: [
+            { q: "今日係禮拜幾? (Gam1 jat6 hai6 Lai5 baai3 gei2?)", options: ["禮拜一 (Lai5 baai3 jat1)", "禮拜六 (Lai5 baai3 luk6)", "禮拜日 (Lai5 baai3 jat6)", "唔知道 (m4 zi1 dou3)"], answer: 2 },
+            { q: "阿麗想食乜嘢? (Aa3 Lai6 soeng2 sik6 mat1 je5?)", options: ["牛肉 (Ngau4 juk6)", "龍蝦 (Lung4 haa1)", "豬肉 (Zyu1 juk6)", "茶 (Caa4)"], answer: 1 },
+            { q: "點解阿麗想食龍蝦? (Dim2 gaai2 Aa3 Lai6 soeng2 sik6 lung4 haa1?)", options: ["因為好貴 (Jan1 wai6 hou2 gwai3)", "因為阿明想食 (Jan1 wai6 Aa3 Ming4 soeng2 sik6)", "因為又新鮮又平 (Jan1 wai6 jau6 san1 sin1 jau6 peng4)", "因為伙記係佢朋友 (Jan1 wai6 fo2 gei3 hai6 keoi5 pang4 jau5)"], answer: 2 },
+            { q: "佢哋食飯用咗幾多錢? (Keoi5 dei6 sik6 faan6 jung6 zo2 gei2 do1 cin2?)", options: ["二十蚊 (ji6 sap6 man1)", "一百蚊 (jat1 baak3 man1)", "二百蚊 (ji6 baak3 man1)", "八十五蚊 (baat3 sap6 ng5 man1)"], answer: 2 },
+            { q: "佢哋覺得啲餸點樣呀? (Keoi5 dei6 gok3 dak1 di1 sung3 dim2 joeng6 aa3?)", options: ["唔好食 (m4 hou2 sik6)", "好好食 (hou2 hou2 sik6)", "太鹹 (taai3 haam4)", "唔新鮮 (m4 san1 sin1)"], answer: 1 },
+            { q: "阿明想食乜嘢? (Aa3 Ming4 soeng2 sik6 mat1 je5?)", options: ["龍蝦 (Lung4 haa1)", "牛肉 (Ngau4 juk6)", "飯 (faan6)", "生果 (saang1 gwo2)"], answer: 1}
+        ]
+    }
+};
+
+let userAnswers = {};
+let resultChart = null;
+let studentName = '';
+let timerInterval = null;
+
+document.addEventListener('DOMContentLoaded', () => {
+    document.getElementById('start-btn').addEventListener('click', startTest);
+    document.getElementById('check-answers-btn').addEventListener('click', checkAllAnswers);
+    document.getElementById('reset-btn').addEventListener('click', resetTest);
+    document.getElementById('close-modal-btn').addEventListener('click', () => {
+        document.getElementById('result-modal').classList.add('hidden');
+    });
+});
+
+function startTest() {
+    const nameInput = document.getElementById('student-name');
+    const nameError = document.getElementById('name-error');
+    studentName = nameInput.value.trim();
+
+    if (studentName === '') {
+        nameError.textContent = 'Vui lòng nhập họ tên của bạn.';
+        return;
+    }
+    
+    nameError.textContent = '';
+    document.getElementById('start-screen').classList.add('hidden');
+    document.getElementById('test-container').classList.remove('hidden');
+
+    loadAllSections();
+    showSection('section-1');
+    startTimer(40 * 60);
+}
+
+function startTimer(duration) {
+    let timer = duration, minutes, seconds;
+    const display = document.getElementById('timer');
+    
+    timerInterval = setInterval(function () {
+        minutes = parseInt(timer / 60, 10);
+        seconds = parseInt(timer % 60, 10);
+
+        minutes = minutes < 10 ? "0" + minutes : minutes;
+        seconds = seconds < 10 ? "0" + seconds : seconds;
+
+        display.textContent = minutes + ":" + seconds;
+
+        if (--timer < 0) {
+            clearInterval(timerInterval);
+            alert("Hết giờ! Bài của bạn sẽ được nộp tự động.");
+            checkAllAnswers();
+        }
+    }, 1000);
+}
+
+
+function loadAllSections() {
+    loadSection1();
+    loadSection2();
+    loadSection3();
+    loadSection4();
+    loadSection5();
+}
+
+function showSection(sectionId) {
+    document.querySelectorAll('main section').forEach(section => section.classList.add('hidden'));
+    document.getElementById(sectionId).classList.remove('hidden');
+
+    document.querySelectorAll('.nav-tab').forEach(tab => tab.classList.remove('active'));
+    document.getElementById(`nav-${sectionId.split('-')[1]}`).classList.add('active');
+}
+
+function loadSection1() {
+    const container = document.getElementById('section-1');
+    container.innerHTML = examData.section1.map((q, i) => `
+        <div class="question-card" id="s1q${i}">
+            <p class="font-medium mb-4">${i + 1}. ${q.q}</p>
+            <div class="space-y-2">
+                ${q.options.map((opt, j) => `
+                    <div>
+                        <input type="radio" id="s1q${i}o${j}" name="s1q${i}" value="${j}" class="mr-2">
+                        <label for="s1q${i}o${j}">${String.fromCharCode(65 + j)}. ${opt}</label>
+                    </div>
+                `).join('')}
+            </div>
+            <div id="s1q${i}-feedback" class="mt-2 text-sm"></div>
+        </div>
+    `).join('');
+}
+
+function loadSection2() {
+    const section = document.getElementById('section-2');
+    section.innerHTML = `
+        <div class="question-card">
+            <h3 class="font-semibold text-lg mb-4">Nhấp vào từ để điền vào chỗ trống</h3>
+            <div id="word-bank" class="flex flex-wrap gap-3 p-4 bg-slate-100 rounded-lg justify-center mb-6">
+                ${[...examData.section2.words].sort(() => Math.random() - 0.5).map(word => `<div class="word-bank-item bg-white p-2 rounded-md shadow" data-word="${word}">${word}</div>`).join('')}
+            </div>
+            <div id="fill-in-the-blanks-questions" class="space-y-4">
+                ${examData.section2.questions.map((q, i) => `
+                    <div class="question-card" id="s2q${i}">
+                        <p class="font-medium mb-2">${i + 1}. ${q.sentence.replace(/_________/, `<span id="fill${i}" class="fill-target"></span>`)}</p>
+                        <div id="s2q${i}-feedback" class="mt-2 text-sm"></div>
+                    </div>
+                `).join('')}
+            </div>
+        </div>
+    `;
+    setupClickToFill();
+}
+
+function setupClickToFill() {
+    const wordBankItems = document.querySelectorAll('.word-bank-item');
+    const fillTargets = document.querySelectorAll('.fill-target');
+
+    wordBankItems.forEach(item => {
+        item.addEventListener('click', () => {
+            if (item.classList.contains('used')) return;
+
+            const firstEmptyTarget = Array.from(fillTargets).find(target => target.textContent === '');
+            if (firstEmptyTarget) {
+                firstEmptyTarget.textContent = item.dataset.word;
+                firstEmptyTarget.classList.add('filled');
+                item.classList.add('used');
+            }
+        });
+    });
+
+    fillTargets.forEach(target => {
+        target.addEventListener('click', () => {
+            if (target.textContent === '') return;
+
+            const wordToReturn = target.textContent;
+            const correspondingItem = Array.from(wordBankItems).find(item => item.dataset.word === wordToReturn);
+            
+            if (correspondingItem) {
+                correspondingItem.classList.remove('used');
+            }
+            target.textContent = '';
+            target.classList.remove('filled');
+        });
+    });
+}
+
+function loadSection3() {
+    const container = document.getElementById('section-3');
+    container.innerHTML = `
+        <div class="question-card">
+        <h3 class="font-semibold text-lg mb-4">Chọn vị trí (A, B, C, hoặc D) để đặt từ/cụm từ cho sẵn vào câu</h3>
+        ${examData.section3.map((q, i) => `
+            <div class="mb-6" id="s3q${i}">
+                <p class="mb-2">${i+1}. Đặt từ: <span class="font-bold text-blue-800">${q.word}</span></p>
+                <div class="font-medium text-lg" data-question-index="${i}">
+                    <p>${q.q.replace(/\(([A-D])\)/g, '<span class="placement-choice font-bold text-red-600 px-1 rounded" data-choice="$1">($1)</span>')}</p>
+                    <p class="jyutping">${q.jyutping}</p>
+                </div>
+                 <div id="s3q${i}-feedback" class="mt-2 text-sm"></div>
+            </div>
+        `).join('')}
+        </div>`;
+
+    document.querySelectorAll('.placement-choice').forEach(choice => {
+        choice.addEventListener('click', e => {
+            const questionDiv = e.target.closest('div[data-question-index]');
+            const qIndex = questionDiv.dataset.questionIndex;
+            questionDiv.querySelectorAll('.placement-choice').forEach(c => c.classList.remove('selected'));
+            e.target.classList.add('selected');
+            userAnswers[`s3q${qIndex}`] = e.target.dataset.choice;
+        });
+    });
+}
+
+function loadSection4() {
+    const container = document.getElementById('section-4');
+    container.innerHTML = `
+        <div class="question-card">
+        <h3 class="font-semibold text-lg mb-4">Dịch các câu sau sang tiếng Quảng Đông</h3>
+        ${examData.section4.map((q, i) => `
+            <div class="mb-4" id="s4q${i}">
+                <p class="font-medium mb-2">${i+1}. ${q.q}</p>
+                <input type="text" id="s4q${i}-input" class="w-full p-2 border border-slate-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-blue-500">
+                <div id="s4q${i}-feedback" class="mt-2 text-sm"></div>
+            </div>
+        `).join('')}
+        </div>`;
+}
+
+function loadSection5() {
+    const container = document.getElementById('section-5');
+    container.innerHTML = `
+        <div class="question-card">
+            <h3 class="font-semibold text-lg mb-4">Đọc đoạn văn và chọn đáp án đúng cho các câu hỏi</h3>
+            <div class="prose max-w-none bg-slate-100 p-4 rounded-md mb-6">
+                ${examData.section5.passage}
+            </div>
+            ${examData.section5.questions.map((q, i) => `
+                <div class="mb-4" id="s5q${i}">
+                    <p class="font-medium mb-2">${i + 1}. ${q.q}</p>
+                    <div class="space-y-2">
+                        ${q.options.map((opt, j) => `
+                            <div>
+                                <input type="radio" id="s5q${i}o${j}" name="s5q${i}" value="${j}" class="mr-2">
+                                <label for="s5q${i}o${j}">${String.fromCharCode(65 + j)}. ${opt}</label>
+                            </div>
+                        `).join('')}
+                    </div>
+                     <div id="s5q${i}-feedback" class="mt-2 text-sm"></div>
+                </div>
+            `).join('')}
+        </div>
+    `;
+}
+
+function checkAllAnswers() {
+    clearInterval(timerInterval);
+    let score = 0;
+    const totalQuestions = examData.section1.length + examData.section2.questions.length + examData.section3.length + examData.section4.length + examData.section5.questions.length;
+
+    examData.section1.forEach((q, i) => {
+        const card = document.getElementById(`s1q${i}`);
+        const feedbackEl = document.getElementById(`s1q${i}-feedback`);
+        const selected = document.querySelector(`input[name="s1q${i}"]:checked`);
+        card.classList.remove('correct', 'incorrect');
+        if (selected && parseInt(selected.value) === q.answer) {
+            score++;
+            card.classList.add('correct');
+            feedbackEl.innerHTML = '';
+        } else {
+            card.classList.add('incorrect');
+            const correctOpt = String.fromCharCode(65 + q.answer);
+            feedbackEl.innerHTML = `<span class="correct-answer-text">Đáp án đúng: ${correctOpt}. ${q.options[q.answer]}</span>`;
+        }
+    });
+
+    examData.section2.questions.forEach((q, i) => {
+        const card = document.getElementById(`s2q${i}`);
+        const feedbackEl = document.getElementById(`s2q${i}-feedback`);
+        const fillTarget = document.getElementById(`fill${i}`);
+        card.classList.remove('correct', 'incorrect');
+        const filledWord = fillTarget.textContent;
+        if (filledWord === q.answer) {
+            score++;
+            card.classList.add('correct');
+            feedbackEl.innerHTML = '';
+        } else {
+            card.classList.add('incorrect');
+            feedbackEl.innerHTML = `<span class="correct-answer-text">Đáp án đúng: ${q.answer}</span>`;
+        }
+    });
+
+    examData.section3.forEach((q, i) => {
+        const card = document.getElementById(`s3q${i}`);
+        const feedbackEl = document.getElementById(`s3q${i}-feedback`);
+        card.classList.remove('correct', 'incorrect');
+        const selectedChoice = userAnswers[`s3q${i}`];
+        if (selectedChoice === q.answer) {
+            score++;
+            card.classList.add('correct');
+             feedbackEl.innerHTML = '';
+        } else {
+            card.classList.add('incorrect');
+            feedbackEl.innerHTML = `<span class="correct-answer-text">Đáp án đúng: (${q.answer})</span>`;
+        }
+    });
+    
+    examData.section4.forEach((q, i) => {
+        const card = document.getElementById(`s4q${i}`);
+        const feedbackEl = document.getElementById(`s4q${i}-feedback`);
+        const input = document.getElementById(`s4q${i}-input`);
+        card.classList.remove('correct', 'incorrect');
+
+        const userInput = input.value.trim().toLowerCase().replace(/[.,。]/g, '');
+        const fullAnswer = q.answer.trim().toLowerCase().replace(/[.,。]/g, '');
+        
+        const jyutpingMatch = q.answer.match(/\((.*?)\)/);
+        const jyutpingAnswer = jyutpingMatch ? jyutpingMatch[1].trim().toLowerCase().replace(/[.,。]/g, '') : null;
+        
+        const fullAnswerNoPunc = fullAnswer.replace(/\s+/g, '');
+        const jyutpingAnswerNoPunc = jyutpingAnswer ? jyutpingAnswer.replace(/\s+/g, '') : null;
+        const userInputNoPunc = userInput.replace(/\s+/g, '');
+
+        if (userInputNoPunc === fullAnswerNoPunc || (jyutpingAnswerNoPunc && userInputNoPunc === jyutpingAnswerNoPunc)) {
+            score++;
+            card.classList.add('correct');
+            feedbackEl.innerHTML = '';
+        } else {
+            card.classList.add('incorrect');
+            feedbackEl.innerHTML = `<span class="correct-answer-text">Đáp án gợi ý: ${q.answer}</span>`;
+        }
+    });
+
+    examData.section5.questions.forEach((q, i) => {
+        const card = document.getElementById(`s5q${i}`);
+        const feedbackEl = document.getElementById(`s5q${i}-feedback`);
+        const selected = document.querySelector(`input[name="s5q${i}"]:checked`);
+         card.classList.remove('correct', 'incorrect');
+        if (selected && parseInt(selected.value) === q.answer) {
+            score++;
+            card.classList.add('correct');
+            feedbackEl.innerHTML = '';
+        } else {
+            card.classList.add('incorrect');
+            const correctOpt = String.fromCharCode(65 + q.answer);
+            feedbackEl.innerHTML = `<span class="correct-answer-text">Đáp án đúng: ${correctOpt}. ${q.options[q.answer]}</span>`;
+        }
+    });
+    
+    displayResults(score, totalQuestions);
+    document.getElementById('check-answers-btn').classList.add('hidden');
+    document.getElementById('reset-btn').classList.remove('hidden');
+}
+
+function displayResults(score, total) {
+    const modal = document.getElementById('result-modal');
+    const scoreEl = document.getElementById('result-score');
+    const messageEl = document.getElementById('result-message');
+    const titleEl = document.getElementById('result-title');
+    const correctCount = score;
+    const incorrectCount = total - score;
+
+    titleEl.textContent = `Kết quả của ${studentName}`;
+    scoreEl.textContent = `${correctCount} / ${total}`;
+    
+    const percentage = total > 0 ? (correctCount / total) * 100 : 0;
+    if (percentage >= 80) {
+        messageEl.textContent = "Xuất sắc! Bạn đã làm rất tốt. Tiếp tục phát huy nhé!";
+    } else if (percentage >= 50) {
+        messageEl.textContent = "Khá tốt! Bạn đã nắm được những kiến thức cơ bản. Cố gắng hơn nữa!";
+    } else {
+        messageEl.textContent = "Cần cố gắng! Đừng nản lòng, hãy ôn tập lại và thử lại nhé!";
+    }
+
+    modal.classList.remove('hidden');
+
+    const ctx = document.getElementById('result-chart').getContext('2d');
+    if(resultChart) {
+        resultChart.destroy();
+    }
+    resultChart = new Chart(ctx, {
+        type: 'doughnut',
+        data: {
+            labels: ['Đúng', 'Sai'],
+            datasets: [{
+                label: 'Kết quả',
+                data: [correctCount, incorrectCount],
+                backgroundColor: ['#48bb78', '#f56565'],
+                borderColor: ['#fff', '#fff'],
+                borderWidth: 2
+            }]
+        },
+        options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            plugins: {
+                legend: {
+                    position: 'bottom',
+                },
+                tooltip: {
+                    callbacks: {
+                        label: function(context) {
+                            let label = context.label || '';
+                            if (label) {
+                                label += ': ';
+                            }
+                            if (context.parsed !== null) {
+                                label += context.parsed;
+                            }
+                            return label;
+                        }
+                    }
+                }
+            }
+        }
+    });
+}
+
+function resetTest() {
+    clearInterval(timerInterval);
+    document.querySelectorAll('.question-card, .mb-6').forEach(el => {
+        el.classList.remove('correct', 'incorrect');
+    });
+    document.querySelectorAll('[id$="-feedback"]').forEach(el => el.innerHTML = '');
+    userAnswers = {};
+    
+    document.getElementById('test-container').classList.add('hidden');
+    document.getElementById('start-screen').classList.remove('hidden');
+    document.getElementById('student-name').value = '';
+
+    document.getElementById('check-answers-btn').classList.remove('hidden');
+    document.getElementById('reset-btn').classList.add('hidden');
+}
+
+</script>
+</body>
+</html>
